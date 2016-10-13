@@ -24,10 +24,10 @@ class FoundationExtensionsSpec: QuickSpec {
 			let center = NotificationCenter.default
 
 			it("should send notifications on the producer") {
-				let producer = center.reactive.notifications(forName: .racFirst)
+				let signal = center.reactive.notifications(forName: .racFirst)
 
 				var notif: Notification? = nil
-				let disposable = producer.startWithValues { notif = $0 }
+				let disposable = signal.observeValues { notif = $0 }
 
 				center.post(name: .racAnother, object: nil)
 				expect(notif).to(beNil())
@@ -36,26 +36,26 @@ class FoundationExtensionsSpec: QuickSpec {
 				expect(notif?.name) == .racFirst
 
 				notif = nil
-				disposable.dispose()
+				disposable?.dispose()
 
 				center.post(name: .racFirst, object: nil)
 				expect(notif).to(beNil())
 			}
 
-			it("should send Interrupted when the observed object is freed") {
-				var observedObject: AnyObject? = NSObject()
-				let producer = center.reactive.notifications(forName: nil, object: observedObject)
-				observedObject = nil
+			it("should be freed if it is not reachable and no observers is attached") {
+				weak var signal: Signal<Notification, NoError>?
 
-				var interrupted = false
-				let disposable = producer.startWithInterrupted {
-					interrupted = true
-				}
-				expect(interrupted) == true
+				let disposable: Disposable? = {
+					let innerSignal = center.reactive.notifications(forName: nil)
+					signal = innerSignal
+					return innerSignal.observe { _ in }
+				}()
 
-				disposable.dispose()
+				expect(signal).toNot(beNil())
+				disposable?.dispose()
+
+				expect(signal).to(beNil())
 			}
-
 		}
 	}
 }
